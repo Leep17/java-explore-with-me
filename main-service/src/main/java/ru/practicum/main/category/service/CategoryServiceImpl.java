@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import ru.practicum.main.category.Category;
 import ru.practicum.main.category.dto.NewCategoryDto;
 import ru.practicum.main.category.repository.CategoryRepository;
+import ru.practicum.main.event.repository.EventRepository;
 import ru.practicum.main.exception.ConflictException;
 import ru.practicum.main.exception.NotFoundException;
 
@@ -15,6 +16,7 @@ import java.util.Collection;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
+    private final EventRepository eventRepository;
 
     @Transactional
     @Override
@@ -31,6 +33,10 @@ public class CategoryServiceImpl implements CategoryService {
     public void deleteById(Long id) {
         categoryRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Категория с id=" + id + " не найдена"));
+
+        if (eventRepository.existsByCategoryId(id)) {
+            throw new ConflictException("Нельзя удалить категорию с привязанными событиями");
+        }
         categoryRepository.deleteById(id);
     }
 

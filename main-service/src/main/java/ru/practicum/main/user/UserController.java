@@ -1,5 +1,6 @@
 package ru.practicum.main.user;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +28,7 @@ public class UserController {
 
     @PostMapping("/admin/users")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserDto saveUser(@RequestBody NewUserDto newUserDto) {
+    public UserDto saveUser(@Valid @RequestBody NewUserDto newUserDto) {
         User user = userService.save(newUserDto);
         return UserMapper.toUserDto(user);
     }

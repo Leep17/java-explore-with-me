@@ -1,5 +1,6 @@
 package ru.practicum.main.compilations;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -14,8 +15,8 @@ import java.util.Collection;
 @RestController
 @RequiredArgsConstructor
 public class CompilationController {
-private final CompilationsService compilationsService;
-private final CompilationMapper compilationMapper;
+    private final CompilationsService compilationsService;
+    private final CompilationMapper compilationMapper;
 
     @GetMapping("/compilations")
     public Collection<CompilationDto> getAll(@RequestParam(defaultValue = "0") int from,
@@ -33,7 +34,7 @@ private final CompilationMapper compilationMapper;
 
     @PostMapping("/admin/compilations")
     @ResponseStatus(HttpStatus.CREATED)
-    public CompilationDto saveNewCompilation(@RequestBody NewCompilationDto newCompilationDto) {
+    public CompilationDto saveNewCompilation(@Valid @RequestBody NewCompilationDto newCompilationDto) {
         return compilationMapper.toCompilationDto(compilationsService.save(newCompilationDto));
     }
 
@@ -45,7 +46,7 @@ private final CompilationMapper compilationMapper;
 
     @PatchMapping("/admin/compilations/{compId}")
     public CompilationDto updateCompilation(@PathVariable Long compId,
-                                            @RequestBody UpdateCompilationDto updateCompilationDto) {
+                                            @Valid @RequestBody UpdateCompilationDto updateCompilationDto) {
         Compilation compilation = compilationsService.updateCompilation(compId, updateCompilationDto);
         return compilationMapper.toCompilationDto(compilation);
     }

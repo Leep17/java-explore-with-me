@@ -1,6 +1,7 @@
 package ru.practicum.main.event;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -108,21 +109,21 @@ public class EventController {
     @PostMapping("/users/{userId}/events")
     @ResponseStatus(HttpStatus.CREATED)
     public EventFullDto saveEvents(@PathVariable Long userId,
-                                   @RequestBody NewEventDto newEventDto) {
+                                    @Valid @RequestBody NewEventDto newEventDto) {
         return eventMapper.toEventFullDto(eventService.save(userId, newEventDto));
     }
 
     @PatchMapping("/users/{userId}/events/{eventId}")
     public EventFullDto updateByUserIdAndEventId(@PathVariable Long userId,
                                                  @PathVariable Long eventId,
-                                                 @RequestBody UpdateEventDto updateEventDto) {
+                                                 @Valid @RequestBody UpdateEventDto updateEventDto) {
 
         return eventMapper.toEventFullDto(eventService.update(userId, eventId, updateEventDto));
     }
 
     @PatchMapping("/admin/events/{eventId}")
     public EventFullDto updateAdmin(@PathVariable Long eventId,
-                                    @RequestBody UpdateEventAdminDto updateEventAdminDto) {
+                                    @Valid @RequestBody UpdateEventAdminDto updateEventAdminDto) {
         return eventMapper.toEventFullDto(eventService.updateById(eventId, updateEventAdminDto));
     }
 

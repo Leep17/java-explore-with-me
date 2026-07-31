@@ -11,6 +11,7 @@ import ru.practicum.main.event.Event;
 import ru.practicum.main.event.EventState;
 import ru.practicum.main.event.dto.*;
 import ru.practicum.main.event.repository.EventRepository;
+import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.exception.ConflictException;
 import ru.practicum.main.exception.NotFoundException;
 import ru.practicum.main.request.RequestStatus;
@@ -42,6 +43,11 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
         Category category = categoryRepository.findById(newEventDto.getCategory())
                 .orElseThrow(() -> new NotFoundException("Категория с id=" + newEventDto.getCategory() + " не найдена"));
+
+        if (newEventDto.getEventDate()
+                .isBefore(LocalDateTime.now().plusHours(2))) {
+            throw new BadRequestException("Дата события должна быть не раньше чем через 2 часа");
+        }
 
         Event event = new Event();
         event.setAnnotation(newEventDto.getAnnotation());
@@ -106,7 +112,7 @@ public class EventServiceImpl implements EventService {
         }
         if (updateEventDto.getEventDate() != null) {
             if (updateEventDto.getEventDate().isBefore(LocalDateTime.now().plusHours(2))) {
-                throw new ConflictException("Дата события должна быть не раньше чем через 2 часа");
+                throw new BadRequestException("Дата события должна быть не раньше чем через 2 часа");
             }
             event.setEventDate(updateEventDto.getEventDate());
         }
@@ -153,6 +159,10 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public Collection<Event> getAll(String text, Set<Long> categories, Boolean paid, LocalDateTime rangeStart, LocalDateTime rangeEnd, Boolean onlyAvailable, EventSort sort, int from, int size) {
+
+        if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
+            throw new BadRequestException("Дата начала диапазона не может быть позже даты окончания");
+        }
 
         LocalDateTime actualRangeStart = rangeStart != null ? rangeStart : LocalDateTime.now();
 
@@ -238,6 +248,9 @@ public class EventServiceImpl implements EventService {
     @Override
     public Collection<Event> getAllAdmin(Set<Long> users, Set<EventState> states, Set<Long> categories, LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size) {
 
+        if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
+            throw new BadRequestException("Дата начала диапазона не может быть позже даты окончания");
+        }
         return eventRepository.findAll().stream()
                 .filter(event -> users == null || users.isEmpty() || users.contains(event.getInitiator().getId()))
                 .filter(event -> states == null || states.isEmpty() || states.contains(event.getState()))
@@ -265,9 +278,12 @@ public class EventServiceImpl implements EventService {
         if (updateEventAdminDto.getDescription() != null) {
             event.setDescription(updateEventAdminDto.getDescription());
         }
-            if (updateEventAdminDto.getEventDate() != null) {
-                event.setEventDate(updateEventAdminDto.getEventDate());
+        if (updateEventAdminDto.getEventDate() != null) {
+            if (updateEventAdminDto.getEventDate().isBefore(LocalDateTime.now().plusHours(1))) {
+                throw new BadRequestException("Дата события должна быть не раньше чем через 1 час");
             }
+            event.setEventDate(updateEventAdminDto.getEventDate());
+        }
         if (updateEventAdminDto.getLocation() != null) {
             if (updateEventAdminDto.getLocation().getLon() != null) {
                 event.setLon(updateEventAdminDto.getLocation().getLon());
