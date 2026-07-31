@@ -2,7 +2,9 @@ package ru.practicum.stats;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
 import ru.practicum.stats.service.EndpointHitService;
@@ -23,6 +25,11 @@ public class EndpointHitController {
                                                  @RequestParam(required = false) List<String> uris,
                                                  @RequestParam(defaultValue = "false") boolean unique
                                                  ) {
+
+        if (start.isAfter(end)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Дата начала диапазона не может быть позже даты окончания");
+        }
+
         if (uris == null) {
             uris = List.of();
         }
@@ -32,6 +39,7 @@ public class EndpointHitController {
     }
 
     @PostMapping("/hit")
+    @ResponseStatus(HttpStatus.CREATED)
     public EndpointHit postEndpointHit(@RequestBody EndpointHitDto endpointHitDto) {
 
         return endpointHitService.save(endpointHitDto);
