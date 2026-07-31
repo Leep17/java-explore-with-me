@@ -23,7 +23,7 @@ public class EndpointHitClient extends BaseClient {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
-    public EndpointHitClient(@Value("${stats_server.url}") String serverUrl, RestTemplateBuilder builder) {
+    public EndpointHitClient(@Value("${stats-server.url}") String serverUrl, RestTemplateBuilder builder) {
         super(
                 builder
                         .uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl + API_PREFIX))
