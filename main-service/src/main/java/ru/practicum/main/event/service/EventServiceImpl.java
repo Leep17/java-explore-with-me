@@ -3,13 +3,16 @@ package ru.practicum.main.event.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import ru.practicum.client.dto.EndpointHitDto;
 import ru.practicum.main.category.Category;
 import ru.practicum.main.category.repository.CategoryRepository;
 import ru.practicum.main.event.Event;
 import ru.practicum.main.event.EventState;
 import ru.practicum.main.event.dto.*;
+import ru.practicum.main.event.mapper.EventMapper;
 import ru.practicum.main.event.repository.EventRepository;
 import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.exception.ConflictException;
@@ -35,6 +38,8 @@ public class EventServiceImpl implements EventService {
     private final RequestRepository requestRepository;
     private final EndpointHitClient endpointHitClient;
     private final ObjectMapper objectMapper;
+    @Value("${spring.application.name}")
+    private String applicationName;
 
     @Transactional
     @Override
@@ -49,22 +54,7 @@ public class EventServiceImpl implements EventService {
             throw new BadRequestException("Дата события должна быть не раньше чем через 2 часа");
         }
 
-        Event event = new Event();
-        event.setAnnotation(newEventDto.getAnnotation());
-        event.setCategory(category);
-        event.setDescription(newEventDto.getDescription());
-        event.setEventDate(newEventDto.getEventDate());
-        event.setLat(newEventDto.getLocation().getLat());
-        event.setLon(newEventDto.getLocation().getLon());
-        event.setPaid(newEventDto.getPaid() != null ? newEventDto.getPaid() : false);
-        event.setParticipantLimit(newEventDto.getParticipantLimit());
-        event.setRequestModeration(newEventDto.getRequestModeration() != null ? newEventDto.getRequestModeration() : true);
-        event.setTitle(newEventDto.getTitle());
-        event.setInitiator(user);
-        event.setCreatedOn(LocalDateTime.now());
-        event.setState(EventState.PENDING);
-
-        return eventRepository.save(event);
+        return eventRepository.save(EventMapper.toEvent(newEventDto, user, category));
     }
 
     @Override
@@ -168,31 +158,25 @@ public class EventServiceImpl implements EventService {
 
         String searchText = text != null ? text.toLowerCase() : null;
 
-        List<Event> events = eventRepository.findAll().stream()
-                .filter(event ->
-                        event.getState() == EventState.PUBLISHED)
-                .filter(event -> searchText == null || event.getAnnotation().toLowerCase().contains(searchText)
-                        || event.getDescription().toLowerCase().contains(searchText))
-                .filter(event -> categories == null || categories.isEmpty() || categories.contains(event.getCategory().getId()))
-                .filter(event -> paid == null || event.isPaid() == paid)
-                .filter(event -> !event.getEventDate().isBefore(actualRangeStart))
-                .filter(event -> rangeEnd == null || !event.getEventDate().isAfter(rangeEnd))
-                .filter(event -> {
-                    if (!Boolean.TRUE.equals(onlyAvailable)) {
-                        return true;
-                    }
+        List<Event> events;
 
-                    if (event.getParticipantLimit() == 0) {
-                        return true;
-                    }
-                    long confirmedRequests =
-                            requestRepository.countByEventIdAndStatus(
-                                    event.getId(),
-                                    RequestStatus.CONFIRMED
-                            );
-
-                    return confirmedRequests < event.getParticipantLimit();
-                }).toList();
+        if (categories == null || categories.isEmpty()) {
+            events = eventRepository.findPublicEvents(
+                    text,
+                    paid,
+                    actualRangeStart,
+                    rangeEnd,
+                    onlyAvailable);
+        } else {
+            events = eventRepository.findPublicEventsByCategories(
+                    text,
+                    categories,
+                    paid,
+                    actualRangeStart,
+                    rangeEnd,
+                    onlyAvailable
+            );
+        }
 
         if (sort == EventSort.EVENT_DATE) {
             events = events.stream()
@@ -251,12 +235,25 @@ public class EventServiceImpl implements EventService {
         if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
             throw new BadRequestException("Дата начала диапазона не может быть позже даты окончания");
         }
-        return eventRepository.findAll().stream()
-                .filter(event -> users == null || users.isEmpty() || users.contains(event.getInitiator().getId()))
-                .filter(event -> states == null || states.isEmpty() || states.contains(event.getState()))
-                .filter(event -> categories == null || categories.isEmpty() || categories.contains(event.getCategory().getId()))
-                .filter(event -> rangeStart == null || !event.getEventDate().isBefore(rangeStart))
-                .filter(event -> rangeEnd == null || !event.getEventDate().isAfter(rangeEnd))
+        boolean filterUsers = users != null && !users.isEmpty();
+        boolean filterStates = states != null && !states.isEmpty();
+        boolean filterCategories = categories != null && !categories.isEmpty();
+
+        Set<Long> usersForQuery = filterUsers ? users : Set.of(-1L);
+
+        Set<EventState> statesForQuery = filterStates ? states : Set.of(EventState.PENDING);
+
+        Set<Long> categoriesForQuery = filterCategories ? categories : Set.of(-1L);
+
+        return eventRepository.findAdminEvents(
+                        filterUsers,
+                        usersForQuery,
+                        filterStates,
+                        statesForQuery,
+                        filterCategories,
+                        categoriesForQuery,
+                        rangeStart,
+                        rangeEnd).stream()
                 .skip(from)
                 .limit(size)
                 .toList();
@@ -330,5 +327,45 @@ public class EventServiceImpl implements EventService {
             event.setState(EventState.CANCELED);
         }
         return event;
+    }
+
+    @Override
+    public long getConfirmedRequests(Long eventId) {
+        return requestRepository.countByEventIdAndStatus(
+                eventId,
+                RequestStatus.CONFIRMED
+        );
+    }
+
+    @Override
+    public long getViews(Event event) {
+        ResponseEntity<Object> response = endpointHitClient.getStatsByUriAndPeriodAndUniqueTrue(
+                        event.getCreatedOn(),
+                        LocalDateTime.now(),
+                        List.of("/events/" + event.getId())
+                );
+
+        if (response.getBody() == null) {
+            return 0L;
+        }
+
+        List<ViewStatsDto> stats = objectMapper.convertValue(
+                response.getBody(),
+                new TypeReference<List<ViewStatsDto>>() {
+                }
+        );
+
+        return stats.stream()
+                .mapToLong(ViewStatsDto::getHits)
+                .sum();
+    }
+
+    @Override
+    public void saveHit(String uri, String ip) {
+        endpointHitClient.saveEndpointHit(new EndpointHitDto(
+                        applicationName,
+                        uri,
+                        ip,
+                        LocalDateTime.now()));
     }
 }

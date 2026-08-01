@@ -1,36 +1,27 @@
 package ru.practicum.main.event.mapper;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import ru.practicum.client.EndpointHitClient;
-import ru.practicum.client.dto.ViewStatsDto;
+import ru.practicum.main.category.Category;
 import ru.practicum.main.category.dto.CategoryDto;
 import ru.practicum.main.event.Event;
+import ru.practicum.main.event.EventState;
 import ru.practicum.main.event.dto.EventFullDto;
 import ru.practicum.main.event.dto.EventShortDto;
 import ru.practicum.main.event.dto.LocationDto;
-import ru.practicum.main.request.RequestStatus;
-import ru.practicum.main.request.repository.RequestRepository;
+import ru.practicum.main.event.dto.NewEventDto;
+import ru.practicum.main.user.User;
 import ru.practicum.main.user.dto.UserShortDto;
 
 import java.time.LocalDateTime;
-import java.util.List;
+
 
 @Component
-@RequiredArgsConstructor
 public class EventMapper {
-    private final RequestRepository requestRepository;
-    private final EndpointHitClient endpointHitClient;
-    private final ObjectMapper objectMapper;
 
-    public EventShortDto toEventShortDto(Event event) {
+    public static EventShortDto toEventShortDto(Event event,
+                                                long confirmedRequests,
+                                                long views) {
 
-        long confirmedRequests = requestRepository.countByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-
-        long views = getViews(event);
 
         return new EventShortDto(
                 event.getAnnotation(),
@@ -51,11 +42,9 @@ public class EventMapper {
         );
     }
 
-    public EventFullDto toEventFullDto(Event event) {
-
-        long confirmedRequests = requestRepository.countByEventIdAndStatus(event.getId(), RequestStatus.CONFIRMED);
-
-        long views = getViews(event);
+    public static EventFullDto toEventFullDto(Event event,
+                                              long confirmedRequests,
+                                              long views) {
 
         return new EventFullDto(event.getAnnotation(),
                 new CategoryDto(event.getCategory().getId(), event.getCategory().getName()),
@@ -75,30 +64,26 @@ public class EventMapper {
                 views);
     }
 
+    public static Event toEvent(
+            NewEventDto newEventDto,
+            User user,
+            Category category) {
 
-    private long getViews(Event event) {
-        String uri = "/events/" + event.getId();
+        Event event = new Event();
+        event.setAnnotation(newEventDto.getAnnotation());
+        event.setCategory(category);
+        event.setDescription(newEventDto.getDescription());
+        event.setEventDate(newEventDto.getEventDate());
+        event.setLat(newEventDto.getLocation().getLat());
+        event.setLon(newEventDto.getLocation().getLon());
+        event.setPaid(newEventDto.getPaid() != null ? newEventDto.getPaid() : false);
+        event.setParticipantLimit(newEventDto.getParticipantLimit());
+        event.setRequestModeration(newEventDto.getRequestModeration() != null ? newEventDto.getRequestModeration() : true);
+        event.setTitle(newEventDto.getTitle());
+        event.setInitiator(user);
+        event.setCreatedOn(LocalDateTime.now());
+        event.setState(EventState.PENDING);
 
-        ResponseEntity<Object> response =
-                endpointHitClient.getStatsByUriAndPeriodAndUniqueTrue(
-                        event.getCreatedOn(),
-                        LocalDateTime.now(),
-                        List.of(uri)
-                );
-
-        if (response.getBody() == null) {
-            return 0L;
-        }
-
-        List<ViewStatsDto> stats = objectMapper.convertValue(
-                response.getBody(),
-                new TypeReference<List<ViewStatsDto>>() {
-                }
-        );
-
-        return stats.stream()
-                .filter(stat -> uri.equals(stat.getUri()))
-                .mapToLong(ViewStatsDto::getHits)
-                .sum();
+        return event;
     }
 }

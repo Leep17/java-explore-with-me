@@ -9,33 +9,64 @@ import ru.practicum.main.compilations.dto.NewCompilationDto;
 import ru.practicum.main.compilations.dto.UpdateCompilationDto;
 import ru.practicum.main.compilations.mapper.CompilationMapper;
 import ru.practicum.main.compilations.service.CompilationsService;
+import ru.practicum.main.event.dto.EventShortDto;
+import ru.practicum.main.event.mapper.EventMapper;
+import ru.practicum.main.event.service.EventService;
 
 import java.util.Collection;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
 public class CompilationController {
     private final CompilationsService compilationsService;
-    private final CompilationMapper compilationMapper;
+    private final EventService eventService;
 
     @GetMapping("/compilations")
     public Collection<CompilationDto> getAll(@RequestParam(defaultValue = "0") int from,
                                              @RequestParam(defaultValue = "10") int size,
                                              @RequestParam(required = false) Boolean pinned) {
+
+
       return compilationsService.getAll(from, size, pinned).stream()
-              .map(compilationMapper::toCompilationDto)
+              .map(compilation -> CompilationMapper.toCompilationDto(compilation,
+                      compilation.getEvents().stream()
+                              .map(event -> EventMapper.toEventShortDto(
+                                      event,
+                                      eventService.getConfirmedRequests(event.getId()),
+                                      eventService.getViews(event)
+                              ))
+                              .toList()))
               .toList();
     }
 
     @GetMapping("/compilations/{compId}")
     public CompilationDto getById(@PathVariable Long compId) {
-        return compilationMapper.toCompilationDto(compilationsService.getById(compId));
+
+        Compilation compilation = compilationsService.getById(compId);
+        List<EventShortDto> events = compilation.getEvents().stream()
+                .map(event -> EventMapper.toEventShortDto(
+                        event,
+                        eventService.getConfirmedRequests(event.getId()),
+                        eventService.getViews(event)
+                ))
+                .toList();
+        return CompilationMapper.toCompilationDto(compilation, events);
     }
 
     @PostMapping("/admin/compilations")
     @ResponseStatus(HttpStatus.CREATED)
     public CompilationDto saveNewCompilation(@Valid @RequestBody NewCompilationDto newCompilationDto) {
-        return compilationMapper.toCompilationDto(compilationsService.save(newCompilationDto));
+
+        Compilation compilation = compilationsService.save(newCompilationDto);
+        List<EventShortDto> events = compilation.getEvents().stream()
+                .map(event -> EventMapper.toEventShortDto(
+                        event,
+                        eventService.getConfirmedRequests(event.getId()),
+                        eventService.getViews(event)
+                ))
+                .toList();
+        return CompilationMapper.toCompilationDto(compilation, events);
     }
 
     @DeleteMapping("/admin/compilations/{compId}")
@@ -48,7 +79,14 @@ public class CompilationController {
     public CompilationDto updateCompilation(@PathVariable Long compId,
                                             @Valid @RequestBody UpdateCompilationDto updateCompilationDto) {
         Compilation compilation = compilationsService.updateCompilation(compId, updateCompilationDto);
-        return compilationMapper.toCompilationDto(compilation);
+        List<EventShortDto> events = compilation.getEvents().stream()
+                .map(event -> EventMapper.toEventShortDto(
+                        event,
+                        eventService.getConfirmedRequests(event.getId()),
+                        eventService.getViews(event)
+                ))
+                .toList();
+        return CompilationMapper.toCompilationDto(compilation, events);
     }
 
 }

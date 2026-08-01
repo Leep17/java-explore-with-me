@@ -7,7 +7,6 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.client.EndpointHitClient;
-import ru.practicum.client.dto.EndpointHitDto;
 import ru.practicum.main.event.dto.*;
 import ru.practicum.main.event.mapper.EventMapper;
 import ru.practicum.main.event.service.EventService;
@@ -20,7 +19,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class EventController {
     private final EventService eventService;
-    private final EventMapper eventMapper;
     private final EndpointHitClient endpointHitClient;
 
     @GetMapping("/events")
@@ -47,14 +45,10 @@ public class EventController {
                 size
         );
 
-        endpointHitClient.saveEndpointHit(new EndpointHitDto("ewm-main-service",
-                        request.getRequestURI(),
-                        request.getRemoteAddr(),
-                        LocalDateTime.now())
-        );
+        eventService.saveHit(request.getRequestURI(), request.getRemoteAddr());
 
         return events.stream()
-                .map(eventMapper::toEventShortDto)
+                .map(event -> EventMapper.toEventShortDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event)))
                 .toList();
     }
 
@@ -64,14 +58,9 @@ public class EventController {
 
         Event event = eventService.getById(id);
 
-        endpointHitClient.saveEndpointHit(new EndpointHitDto("ewm-main-service",
-                        request.getRequestURI(),
-                        request.getRemoteAddr(),
-                        LocalDateTime.now()
-                )
-        );
+        eventService.saveHit(request.getRequestURI(), request.getRemoteAddr());
 
-        return eventMapper.toEventFullDto(event);
+        return EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event));
     }
 
     @GetMapping("/users/{userId}/events")
@@ -80,7 +69,7 @@ public class EventController {
                                  @RequestParam(defaultValue = "10") int size) {
 
         return eventService.getAll(userId, from, size).stream()
-                .map(eventMapper::toEventShortDto)
+                .map(event -> EventMapper.toEventShortDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event)))
                 .toList();
     }
 
@@ -88,7 +77,9 @@ public class EventController {
     public EventFullDto getByUserIdAndId(@PathVariable Long userId,
                                          @PathVariable Long eventId) {
 
-        return eventMapper.toEventFullDto(eventService.getByIdAndUserId(userId,eventId));
+        Event event = eventService.getByIdAndUserId(userId, eventId);
+
+        return EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event));
     }
 
     @GetMapping("/admin/events")
@@ -101,7 +92,7 @@ public class EventController {
                                                  @RequestParam(defaultValue = "10") int size) {
 
         return eventService.getAllAdmin(users, states, categories, rangeStart, rangeEnd, from, size).stream()
-                .map(eventMapper::toEventFullDto)
+                .map(event -> EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event)))
                 .toList();
 
     }
@@ -110,7 +101,8 @@ public class EventController {
     @ResponseStatus(HttpStatus.CREATED)
     public EventFullDto saveEvents(@PathVariable Long userId,
                                     @Valid @RequestBody NewEventDto newEventDto) {
-        return eventMapper.toEventFullDto(eventService.save(userId, newEventDto));
+        Event event = eventService.save(userId, newEventDto);
+        return EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event));
     }
 
     @PatchMapping("/users/{userId}/events/{eventId}")
@@ -118,13 +110,17 @@ public class EventController {
                                                  @PathVariable Long eventId,
                                                  @Valid @RequestBody UpdateEventDto updateEventDto) {
 
-        return eventMapper.toEventFullDto(eventService.update(userId, eventId, updateEventDto));
+        Event event = eventService.update(userId, eventId, updateEventDto);
+
+        return EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event));
     }
 
     @PatchMapping("/admin/events/{eventId}")
     public EventFullDto updateAdmin(@PathVariable Long eventId,
                                     @Valid @RequestBody UpdateEventAdminDto updateEventAdminDto) {
-        return eventMapper.toEventFullDto(eventService.updateById(eventId, updateEventAdminDto));
+        Event event = eventService.updateById(eventId, updateEventAdminDto);
+
+        return EventMapper.toEventFullDto(event, eventService.getConfirmedRequests(event.getId()), eventService.getViews(event));
     }
 
 }

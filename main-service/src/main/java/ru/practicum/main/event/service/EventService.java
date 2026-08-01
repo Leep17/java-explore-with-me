@@ -24,4 +24,10 @@ public interface EventService {
     Collection<Event> getAllAdmin(Set<Long> users, Set<EventState> states, Set<Long> categories, LocalDateTime rangeStart, LocalDateTime rangeEnd, int from, int size);
 
     Event updateById(Long id, UpdateEventAdminDto updateEventAdminDto);
+
+    long getConfirmedRequests(Long eventId);
+
+    long getViews(Event event);
+
+    void saveHit(String uri, String ip);
 }
