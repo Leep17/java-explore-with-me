@@ -23,11 +23,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         select e
         from Event e
         where e.state = ru.practicum.main.event.EventState.PUBLISHED
-          and (:text is null or lower(e.annotation) like lower(concat('%', :text, '%'))
-                or lower(e.description) like lower(concat('%', :text, '%')))
-          and (:paid is null or e.paid = :paid)
+          and (lower(e.annotation) like lower(concat('%', coalesce(:text, ''), '%'))
+          or lower(e.description) like lower(concat('%', coalesce(:text, ''), '%')))
+          and e.paid = coalesce(:paid, e.paid)
           and e.eventDate >= :rangeStart
-          and (:rangeEnd is null or e.eventDate <= :rangeEnd)
+          and e.eventDate <= coalesce(:rangeEnd, e.eventDate)
           and (:onlyAvailable = false
                 or e.participantLimit = 0
                 or (select count(r.id)
@@ -48,18 +48,18 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         select e
         from Event e
         where e.state = ru.practicum.main.event.EventState.PUBLISHED
-          and (:text is null or lower(e.annotation) like lower(concat('%', :text, '%'))
-                or lower(e.description) like lower(concat('%', :text, '%')))
+          and (lower(e.annotation) like lower(concat('%', coalesce(:text, ''), '%'))
+          or lower(e.description) like lower(concat('%', coalesce(:text, ''), '%')))
           and e.category.id in :categories
-          and (:paid is null or e.paid = :paid)
+          and e.paid = coalesce(:paid, e.paid)
           and e.eventDate >= :rangeStart
-          and (:rangeEnd is null or e.eventDate <= :rangeEnd)
+          and e.eventDate <= coalesce(:rangeEnd, e.eventDate)
           and (:onlyAvailable = false
                 or e.participantLimit = 0
                 or (select count(r.id)
                     from Request r
                     where r.event.id = e.id
-                      and r.status = ru.practicum.main.request.RequestStatus.CONFIRMED
+                    and r.status =ru.practicum.main.request.RequestStatus.CONFIRMED
                 ) < e.participantLimit
           )
         """)
@@ -78,8 +78,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         where (:filterUsers = false or e.initiator.id in :users)
           and (:filterStates = false or e.state in :states)
           and (:filterCategories = false or e.category.id in :categories)
-          and (:rangeStart is null or e.eventDate >= :rangeStart)
-          and (:rangeEnd is null or e.eventDate <= :rangeEnd)
+          and e.eventDate >= coalesce(:rangeStart, e.eventDate)
+          and e.eventDate <= coalesce(:rangeEnd, e.eventDate)
         """)
     List<Event> findAdminEvents(
             @Param("filterUsers") boolean filterUsers,
